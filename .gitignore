@@ -1,0 +1,54 @@
+# Node.js dependencies  
+node_modules/
+
+# TypeScript build output (compiled JS files)  
+dist/  
+
+# TypeScript incremental build info  
+tsconfig.tsbuildinfo  
+
+# Environment variables (security reasons)  
+.env  
+.env.local  
+.env.development  
+.env.production  
+.env.test  
+
+# Log files and debugging artifacts  
+npm-debug.log*  
+yarn-debug.log*  
+pnpm-debug.log*  
+debug.log*  
+logs/  
+*.log  
+
+# Prisma generated files  
+prisma/node_modules/  
+prisma/migrations/  
+
+# Ignore lock files if using another package manager (Uncomment if needed)
+# package-lock.json  
+# yarn.lock  
+# pnpm-lock.yaml  
+
+# IDE/editor-related files  
+.vscode/  
+.idea/  
+*.swp  
+*.swo  
+*.sublime-workspace  
+
+# MacOS system files  
+.DS_Store  
+
+# Docker files (if using Docker)  
+docker-compose.override.yml  
+.dockerignore  
+
+# Test coverage reports (Jest, Istanbul, etc.)  
+coverage/  
+*.lcov  
+
+# Temporary files  
+tmp/  
+temp/  

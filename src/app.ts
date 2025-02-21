@@ -1,7 +1,9 @@
+import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import createHttpError from "http-errors";
 import globalErrorHandler from "./controllers/errorController.ts";
 import cookieParser from "cookie-parser";
+import userRouter from "./routes/userRoute.ts";
 
 // * CREATE EXPRESS APP
 const app = express();
@@ -12,9 +14,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // * ALL ROUTES
-app.get("/api", (req, res) => {
-	res.send("Hello World!");
-});
+app.use("/api/users", userRouter);
 
 // * 404 ERROR HANDLER
 app.use((req: Request, _res: Response, next: NextFunction) => {

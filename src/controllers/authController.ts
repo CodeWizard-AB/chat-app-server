@@ -84,7 +84,6 @@ export const signup = catchAsync(
 	async (req: Request, res: Response, next: NextFunction) => {
 		// * ✅ STEP 1: VALIDATE REQUEST BODY
 		const validation = userSchema.safeParse(req.body);
-
 		if (!validation.success) {
 			const errors = validation.error.errors.map((err) => ({
 				field: err.path.join("."),
@@ -129,13 +128,41 @@ export const signup = catchAsync(
 			data: { ...validation.data, password: hashedPassword },
 		});
 
-		// * ✅ STEP 7: CREATE ACCESS AND REFRESH TOKEN
+		// * ✅ STEP 7: SEND TOKENS
 		createSendTokens(newUser, 201, req, res);
 	}
 );
 
-export const login = () => {};
-export const logout = () => {};
+export const login = catchAsync(
+	async (req: Request, res: Response, next: NextFunction) => {
+		// * ✅ STEP 1: VALIDATE REQUEST BODY
+		const { email, password } = req.body;
+		if (!email || !password) {
+			return next(createHttpError(400, "Email and password are required"));
+		}
+
+		// * ✅ STEP 2: CHECK IF USER EXISTS
+		const existingUser = await prisma.user.findUnique({
+			where: { email },
+		});
+		if (!existingUser) {
+			return next(createHttpError(404, "User not found"));
+		}
+
+		console.log(existingUser);
+
+		// * ✅ STEP 3: VERIFY PASSWORD
+		const passwordMatch = await bcrypt.compare(password, existingUser.password);
+		if (!passwordMatch) {
+			return next(createHttpError(401, "Invalid credentials"));
+		}
+
+		// * ✅ STEP 4: SEND TOKENS
+		createSendTokens(existingUser, 200, req, res);
+	}
+);
+
+export const logout = () => {};  
 export const protect = () => {};
 export const retrictTo = () => {};
 export const forgotPassword = () => {};

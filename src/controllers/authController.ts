@@ -8,6 +8,7 @@ import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
 import { verifyEmail, verifyPhone } from "../utils/verificationServices.ts";
 import { Role, User } from "@prisma/client";
+import crypto from "crypto";
 
 // * ✅ SIGN TOKEN
 const signToken = (id: string, secret: string, expiresIn: number) => {
@@ -118,7 +119,8 @@ export const signup = catchAsync(
 		}
 
 		// * ✅ STEP 5: HASH PASSWORD
-		const hashedPassword = await bcrypt.hash(password, 12);
+		const salt = await bcrypt.genSalt(12);
+		const hashedPassword = await bcrypt.hash(password, salt);
 
 		// * ✅ STEP 6: CREATE USER
 		const newUser = await prisma.user.create({
@@ -130,6 +132,7 @@ export const signup = catchAsync(
 	}
 );
 
+// * ✅ LOGIN
 export const login = catchAsync(
 	async (req: Request, res: Response, next: NextFunction) => {
 		// * ✅ STEP 1: VALIDATE REQUEST BODY
@@ -157,6 +160,7 @@ export const login = catchAsync(
 	}
 );
 
+// * ✅ LOGOUT
 export const logout = catchAsync(async (req: Request, res: Response) => {
 	// * ✅ CLEAR COOKIES AND SEND RESPONSE
 	const options = { httpOnly: true, secure: true };
@@ -170,12 +174,12 @@ export const logout = catchAsync(async (req: Request, res: Response) => {
 		});
 });
 
+// * ✅ VERIFY TOKEN
 export const verifyToken = catchAsync(
 	async (req: Request, res: Response, next: NextFunction) => {
 		// * ✅ GET TOKEN
 		const token =
 			req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
-
 		if (!token) {
 			return next(createHttpError(401, "Unauthorized - No Token Provided"));
 		}
@@ -199,6 +203,7 @@ export const verifyToken = catchAsync(
 	}
 );
 
+// * ✅ PROTECT ROUTES
 export const restrictTo = (...roles: Role[]) => {
 	return (_req: Request, res: Response, next: NextFunction) => {
 		// * ✅ CHECK IF USER HAS REQUIRED ROLE
@@ -209,7 +214,135 @@ export const restrictTo = (...roles: Role[]) => {
 	};
 };
 
-export const forgotPassword = () => {};
+// * ✅ FORGOT PASSWORD
+export const forgotPassword = catchAsync(
+	async (req: Request, res: Response, next: NextFunction) => {
+		// * ✅ STEP 1: VALIDATE REQUEST BODY
+		const { email } = req.body;
+		if (!email) {
+			return next(createHttpError(400, "Email is required"));
+		}
 
-export const resetPassword = () => {};
-export const updatePassword = () => {};
+		// * ✅ STEP 2: CHECK IF USER EXISTS
+		const existingUser = await prisma.user.findUnique({ where: { email } });
+		if (!existingUser) {
+			return next(createHttpError(404, "User not found"));
+		}
+
+		// * ✅ STEP 3: CREATE RESET TOKEN
+		const resetToken = crypto.randomBytes(32).toString("hex");
+		const hashedToken = crypto
+			.createHash("sha256")
+			.update(resetToken)
+			.digest("hex");
+
+		// * ✅ STEP 4: UPDATE USER WITH RESET TOKEN
+		await prisma.user.update({
+			where: { id: existingUser.id },
+			data: {
+				passwordResetToken: hashedToken,
+				passwordResetExpires: new Date(Date.now() + 10 * 60 * 1000),
+			},
+		});
+
+		// * ✅ STEP 5: SEND EMAIL WITH RESET TOKEN
+		// const resetUrl = `${req.protocol}://${req.get(
+		// 	"host"
+		// )}/api/v1/users/reset-password/${resetToken}`;
+
+		// * ✅ STEP 6: SEND RESPONSE
+		res.status(200).json({ status: "success", message: "Token send to email" });
+	}
+);
+
+// * ✅ RESET PASSWORD
+export const resetPassword = catchAsync(
+	async (req: Request, res: Response, next: NextFunction) => {
+		// * ✅ STEP 1: GET RESET TOKEN
+		const resetToken = req.params.token;
+		if (!resetToken) {
+			return next(createHttpError(400, "Reset token is required"));
+		}
+
+		// * ✅ STEP 2: HASH RESET TOKEN
+		const hashedToken = crypto
+			.createHash("sha256")
+			.update(resetToken)
+			.digest("hex");
+
+		// * ✅ STEP 3: CHECK IF USER EXISTS
+		const user = await prisma.user.findFirst({
+			where: {
+				passwordResetToken: hashedToken,
+				passwordResetExpires: { gt: new Date(Date.now()) },
+			},
+		});
+		if (!user) {
+			return next(createHttpError(400, "Token is invalid or has expired"));
+		}
+
+		// * ✅ STEP 4: VALIDATION PASSWORD
+		const { password } = req.body;
+		if (!password) {
+			return next(createHttpError(400, "Password is required"));
+		}
+
+		// * STEP 5: CREATE HASHED PASSWORD
+		const salt = await bcrypt.genSalt(12);
+		const hashedPassword = await bcrypt.hash(password, salt);
+
+		// * STEP 6: UPDATE PASSWORD
+		await prisma.user.update({
+			where: { id: user.id },
+			data: {
+				password: hashedPassword,
+				passwordResetToken: null,
+				passwordResetExpires: null,
+			},
+		});
+
+		// * STEP 7: SEND RESPONSE
+		res.status(200).json({ status: "success", message: "Password updated" });
+	}
+);
+
+// * ✅ UPDATE PASSWORD
+export const updatePassword = catchAsync(
+	async (req: Request, res: Response, next: NextFunction) => {
+		// * ✅ STEP 1: CHECK IF USER EXISTS
+		const user = await prisma.user.findUnique({
+			where: { id: res.locals.user.id },
+		});
+		if (!user) {
+			return next(createHttpError(404, "User not found"));
+		}
+
+		// * STEP 2: VALIDATION PASSWORD
+		const { password } = req.body;
+		if (!password) {
+			return next(createHttpError(400, "Password is required"));
+		}
+
+		// * ✅ STEP 3: VERIFY PASSWORD
+		const passwordMatch = await bcrypt.compare(
+			req.body.password,
+			user.password
+		);
+		if (!passwordMatch) {
+			return next(createHttpError(401, "Invalid credentials"));
+		}
+
+		// * ✅ STEP 4: CREATE HASHED PASSWORD
+		const salt = await bcrypt.genSalt(12);
+		const hashedPassword = await bcrypt.hash(password, salt);
+
+		// * ✅ STEP 5: UPDATE PASSWORD
+		await prisma.user.update({
+			where: { id: user.id },
+			data: { password: hashedPassword, passwordChangedAt: new Date() },
+		});
+
+		// * ✅ STEP 6: SEND RESPONSE
+		res.status(200).json({ status: "success", message: "Password updated" });
+	}
+);

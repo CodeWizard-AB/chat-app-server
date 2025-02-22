@@ -1,10 +1,27 @@
 import { Router } from "express";
-import { login, logout, signup } from "../controllers/authController.ts";
+import {
+	forgotPassword,
+	login,
+	logout,
+	resetPassword,
+	signup,
+	updatePassword,
+	verifyToken,
+} from "../controllers/authController.ts";
 
+// * ✅ CREATE ROUTER
 const router = Router();
 
+// * ✅ PUBLIC ROUTES
 router.post("/signup", signup);
 router.post("/login", login);
 router.get("/logout", logout);
+router.post("/forgotPassword", forgotPassword);
+router.post("/resetPassword", resetPassword);
+
+// * ✅ PROTECTED ROUTES
+router.use(verifyToken);
+
+router.patch("/updatePassword", updatePassword);
 
 export default router;

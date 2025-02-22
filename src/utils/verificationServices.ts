@@ -5,7 +5,7 @@ export const verifyEmail = async (email: string) => {
 	try {
 		// * ✅ CALL ABSTRACT API FOR EMAIL VERIFICATION
 		const { data } = await axios(
-			`${process.env.ABSTRACT_EMAIL_API_URL}?api_key=${process.env.ABSTRACT_API_KEY}&email=${email}`
+			`${process.env.ABSTRACT_EMAIL_API_URL}?api_key=${process.env.ABSTRACT_EMAIL_API_KEY}&email=${email}`
 		);
 
 		// * 🛑 1. INVALID FORMAT (BASIC STRUCTURE CHECK)
@@ -61,8 +61,8 @@ export const verifyEmail = async (email: string) => {
 export const verifyPhone = async (phone: string) => {
 	try {
 		// * ✅ CALL ABSTRACT API FOR PHONE VERIFICATION
-		const { data } = await axios.get(
-			`${process.env.ABSTRACT_PHONE_API_URL}?api_key=${process.env.ABSTRACT_API_KEY}&phone=${phone}`
+		const { data } = await axios(
+			`${process.env.ABSTRACT_PHONE_API_URL}?api_key=${process.env.ABSTRACT_PHONE_API_KEY}&phone=${phone}`
 		);
 
 		// * 🛑 1. INVALID FORMAT

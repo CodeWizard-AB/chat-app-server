@@ -7,15 +7,12 @@ import { userSchema } from "../utils/validationSchemas.ts";
 import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
 import { verifyEmail, verifyPhone } from "../utils/verificationServices.ts";
-import { User } from "@prisma/client";
+import { Role, User } from "@prisma/client";
 
 // * ✅ SIGN TOKEN
 const signToken = (id: string, secret: string, expiresIn: number) => {
 	return jwt.sign({ id }, secret, { expiresIn: expiresIn });
 };
-
-// * ✅ VERIFY TOKEN
-const verifyToken = () => {};
 
 // * ✅ SET COOKIE
 const setCookie = (
@@ -149,8 +146,6 @@ export const login = catchAsync(
 			return next(createHttpError(404, "User not found"));
 		}
 
-		console.log(existingUser);
-
 		// * ✅ STEP 3: VERIFY PASSWORD
 		const passwordMatch = await bcrypt.compare(password, existingUser.password);
 		if (!passwordMatch) {
@@ -162,9 +157,59 @@ export const login = catchAsync(
 	}
 );
 
-export const logout = () => {};  
-export const protect = () => {};
-export const retrictTo = () => {};
+export const logout = catchAsync(async (req: Request, res: Response) => {
+	// * ✅ CLEAR COOKIES AND SEND RESPONSE
+	const options = { httpOnly: true, secure: true };
+	res
+		.clearCookie("accessToken", options)
+		.clearCookie("refreshToken", options)
+		.status(200)
+		.json({
+			status: "success",
+			message: "Logged out successfully",
+		});
+});
+
+export const verifyToken = catchAsync(
+	async (req: Request, res: Response, next: NextFunction) => {
+		// * ✅ GET TOKEN
+		const token =
+			req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
+
+		if (!token) {
+			return next(createHttpError(401, "Unauthorized - No Token Provided"));
+		}
+
+		// * ✅ VERIFY TOKEN
+		const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as {
+			id: string;
+		};
+
+		// * ✅ CHECK IF USER EXISTS
+		const user = await prisma.user.findUnique({
+			where: { id: decoded.id },
+		});
+		if (!user) {
+			return next(createHttpError(401, "Unauthorized - User Not Found"));
+		}
+
+		// * ✅ ATTACH USER TO REQUEST
+		res.locals.user = user;
+		next();
+	}
+);
+
+export const restrictTo = (...roles: Role[]) => {
+	return (_req: Request, res: Response, next: NextFunction) => {
+		// * ✅ CHECK IF USER HAS REQUIRED ROLE
+		if (!roles.includes((res.locals.user as User).role)) {
+			return next(createHttpError(403, "Forbidden - Access Denied"));
+		}
+		next();
+	};
+};
+
 export const forgotPassword = () => {};
+
 export const resetPassword = () => {};
 export const updatePassword = () => {};

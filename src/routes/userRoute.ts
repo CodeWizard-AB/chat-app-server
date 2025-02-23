@@ -17,7 +17,7 @@ router.post("/signup", signup);
 router.post("/login", login);
 router.get("/logout", logout);
 router.post("/forgotPassword", forgotPassword);
-router.post("/resetPassword", resetPassword);
+router.post("/resetPassword/:token", resetPassword);
 
 // * ✅ PROTECTED ROUTES
 router.use(verifyToken);

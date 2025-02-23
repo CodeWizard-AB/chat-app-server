@@ -98,7 +98,6 @@ export const signup = catchAsync(
 				field: err.path.join("."),
 				message: err.message,
 			}));
-
 			return next(
 				createHttpError(400, {
 					message: "Validation failed",
@@ -107,9 +106,10 @@ export const signup = catchAsync(
 			);
 		}
 
+		// * ✅ STEP 2: DESTRUCTURE DATA
 		const { email, phoneNumber, password } = validation.data;
 
-		// * ✅ STEP 2: CHECK IF USER EXISTS
+		// * ✅ STEP 3: CHECK IF USER EXISTS
 		const existingUser = await prisma.user.findFirst({
 			where: { OR: [{ email }, { phoneNumber }] },
 		});
@@ -122,35 +122,35 @@ export const signup = catchAsync(
 			);
 		}
 
-		// * ✅ STEP 3: VERIFY EMAIL
+		// * ✅ STEP 4: VERIFY EMAIL
 		const emailResult = await verifyEmail(email);
 		if (!emailResult.success) {
 			return next(createHttpError(400, emailResult.message));
 		}
 
-		// * ✅ STEP 4: VERIFY PHONE NUMBER
+		// * ✅ STEP 5: VERIFY PHONE NUMBER
 		const phoneResult = await verifyPhone(phoneNumber);
 		if (!phoneResult.success) {
 			return next(createHttpError(400, phoneResult.message));
 		}
 
-		// * ✅ STEP 5: HASH PASSWORD
+		// * ✅ STEP 6: HASH PASSWORD
 		const salt = await bcrypt.genSalt(12);
 		const hashedPassword = await bcrypt.hash(password, salt);
 
-		// * ✅ STEP 6: CREATE USER
+		// * ✅ STEP 7: CREATE USER
 		const newUser = await prisma.user.create({
 			data: { ...validation.data, password: hashedPassword },
 		});
 
-		// * ✅ STEP 7: SEND WELCOME EMAIL
-		const emailService = new EmailService(newUser);
+		// * ✅ STEP 8: SEND WELCOME EMAIL
+		const emailService = new EmailService(newUser, "#");
 		const { error } = await emailService.sendWelcome();
 		if (error) {
-			return next(createHttpError(500, error));
+			return next(createHttpError(500, "Failed to send email"));
 		}
 
-		// * ✅ STEP 8: SEND TOKENS
+		// * ✅ STEP 9: SEND TOKENS
 		createSendTokens(newUser, 201, req, res);
 	}
 );
@@ -269,9 +269,12 @@ export const forgotPassword = catchAsync(
 		});
 
 		// * ✅ STEP 5: SEND EMAIL WITH RESET TOKEN
-		// const resetUrl = `${req.protocol}://${req.get(
-		// 	"host"fsi
-		// )}/api/v1/users/reset-password/${resetToken}`;
+		const resetURL = `http://localhost:3000/api/users/resetPassword/${resetToken}`;
+		const emailService = new EmailService(existingUser, resetURL);
+		const { error } = await emailService.sendResetPassword();
+		if (error) {
+			return next(createHttpError(500, "Failed to send email"));
+		}
 
 		// * ✅ STEP 6: SEND RESPONSE
 		res.status(200).json({ status: "success", message: "Token send to email" });

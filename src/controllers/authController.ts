@@ -9,20 +9,31 @@ import bcrypt from "bcrypt";
 import { verifyEmail, verifyPhone } from "../utils/verificationServices.ts";
 import { Role, User } from "@prisma/client";
 import crypto from "crypto";
+import EmailService from "../utils/emailService.ts";
+
+// * ✅ COOKIE PARAMS INTERFACE
+interface SetCookie {
+	name: string;
+	token: string;
+	expiry: number;
+	req: Request;
+	res: Response;
+}
+
+// * ✅ SIGN TOKEN INTERFACE
+interface SignToken {
+	id: string;
+	secret: string;
+	expiresIn: number;
+}
 
 // * ✅ SIGN TOKEN
-const signToken = (id: string, secret: string, expiresIn: number) => {
+const signToken = ({ id, secret, expiresIn }: SignToken) => {
 	return jwt.sign({ id }, secret, { expiresIn: expiresIn });
 };
 
 // * ✅ SET COOKIE
-const setCookie = (
-	name: string,
-	token: string,
-	expiry: number,
-	req: Request,
-	res: Response
-) => {
+const setCookie = ({ name, token, expiry, req, res }: SetCookie) => {
 	res.cookie(name, token, {
 		expires: new Date(Date.now() + expiry),
 		httpOnly: true,
@@ -39,35 +50,35 @@ const createSendTokens = (
 	res: Response
 ) => {
 	// * ✅ CREATE ACCESS AND REFRESH TOKEN
-	const accessToken = signToken(
-		user.id,
-		process.env.JWT_ACCESS_SECRET!,
-		+process.env.JWT_ACCESS_TOKEN_EXPIRY! * 60 * 1000
-	);
-	const refreshToken = signToken(
-		user.id,
-		process.env.JWT_REFRESH_SECRET!,
-		+process.env.JWT_REFRESH_TOKEN_EXPIRY! * 24 * 60 * 60 * 1000
-	);
+	const accessToken = signToken({
+		id: user.id,
+		secret: process.env.JWT_ACCESS_SECRET!,
+		expiresIn: +process.env.JWT_ACCESS_TOKEN_EXPIRY! * 60 * 1000,
+	});
+	const refreshToken = signToken({
+		id: user.id,
+		secret: process.env.JWT_REFRESH_SECRET!,
+		expiresIn: +process.env.JWT_REFRESH_TOKEN_EXPIRY! * 24 * 60 * 60 * 1000,
+	});
 
 	// * ✅ REMOVE PASSWORD FROM USER OBJECT
 	const { password, ...rest } = user;
 
 	// * ✅ SET COOKIES
-	setCookie(
-		"accessToken",
-		accessToken,
-		+process.env.JWT_ACCESS_TOKEN_EXPIRY! * 60 * 1000,
+	setCookie({
+		name: "accessToken",
+		token: accessToken,
+		expiry: +process.env.JWT_ACCESS_TOKEN_EXPIRY! * 60 * 1000,
 		req,
-		res
-	);
-	setCookie(
-		"refreshToken",
-		refreshToken,
-		+process.env.JWT_REFRESH_TOKEN_EXPIRY! * 60 * 60 * 1000 * 24,
+		res,
+	});
+	setCookie({
+		name: "refreshToken",
+		token: refreshToken,
+		expiry: +process.env.JWT_REFRESH_TOKEN_EXPIRY! * 60 * 60 * 1000 * 24,
 		req,
-		res
-	);
+		res,
+	});
 
 	// * ✅ SEND RESPONSE
 	res.status(statusCode).json({
@@ -99,11 +110,16 @@ export const signup = catchAsync(
 		const { email, phoneNumber, password } = validation.data;
 
 		// * ✅ STEP 2: CHECK IF USER EXISTS
-		const existingUser = await prisma.user.findUnique({
-			where: { email },
+		const existingUser = await prisma.user.findFirst({
+			where: { OR: [{ email }, { phoneNumber }] },
 		});
 		if (existingUser) {
-			return next(createHttpError(409, "User already exists"));
+			return next(
+				createHttpError(
+					409,
+					"User already exists with this email or phone number"
+				)
+			);
 		}
 
 		// * ✅ STEP 3: VERIFY EMAIL
@@ -127,7 +143,14 @@ export const signup = catchAsync(
 			data: { ...validation.data, password: hashedPassword },
 		});
 
-		// * ✅ STEP 7: SEND TOKENS
+		// * ✅ STEP 7: SEND WELCOME EMAIL
+		const emailService = new EmailService(newUser);
+		const { error } = await emailService.sendWelcome();
+		if (error) {
+			return next(createHttpError(500, error));
+		}
+
+		// * ✅ STEP 8: SEND TOKENS
 		createSendTokens(newUser, 201, req, res);
 	}
 );
@@ -142,26 +165,26 @@ export const login = catchAsync(
 		}
 
 		// * ✅ STEP 2: CHECK IF USER EXISTS
-		const existingUser = await prisma.user.findUnique({
+		const user = await prisma.user.findUnique({
 			where: { email },
 		});
-		if (!existingUser) {
+		if (!user) {
 			return next(createHttpError(404, "User not found"));
 		}
 
 		// * ✅ STEP 3: VERIFY PASSWORD
-		const passwordMatch = await bcrypt.compare(password, existingUser.password);
+		const passwordMatch = await bcrypt.compare(password, user.password);
 		if (!passwordMatch) {
 			return next(createHttpError(401, "Invalid credentials"));
 		}
 
 		// * ✅ STEP 4: SEND TOKENS
-		createSendTokens(existingUser, 200, req, res);
+		createSendTokens(user, 200, req, res);
 	}
 );
 
 // * ✅ LOGOUT
-export const logout = catchAsync(async (req: Request, res: Response) => {
+export const logout = catchAsync(async (_req: Request, res: Response) => {
 	// * ✅ CLEAR COOKIES AND SEND RESPONSE
 	const options = { httpOnly: true, secure: true };
 	res
@@ -247,7 +270,7 @@ export const forgotPassword = catchAsync(
 
 		// * ✅ STEP 5: SEND EMAIL WITH RESET TOKEN
 		// const resetUrl = `${req.protocol}://${req.get(
-		// 	"host"
+		// 	"host"fsi
 		// )}/api/v1/users/reset-password/${resetToken}`;
 
 		// * ✅ STEP 6: SEND RESPONSE

@@ -4,6 +4,7 @@ import createHttpError from "http-errors";
 import globalErrorHandler from "./controllers/errorController.ts";
 import cookieParser from "cookie-parser";
 import userRouter from "./routes/userRoute.ts";
+import { Resend } from "resend";
 
 // * CREATE EXPRESS APP
 const app = express();

@@ -8,7 +8,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // * ✅ EMAIL SERVICE
 export default class EmailService {
 	// * ✅ CONSTRUCTOR
-	constructor(private user: User, private url: string) {}
+	constructor(private user: User) {}
 
 	// * ✅ SEND EMAIL
 	async sendEmail(template: string, subject: string) {
@@ -21,17 +21,17 @@ export default class EmailService {
 	}
 
 	// * ✅ SEND WELCOME EMAIL
-	async sendWelcome() {
+	async sendWelcome(url: string) {
 		const template = (
 			await readFile(`${process.cwd()}/src/templates/welcome.html`, "utf-8")
 		)
 			.replace("[UserName]", this.user.name)
-			.replace("[Link]", this.url);
+			.replace("[Link]", url);
 		return this.sendEmail(template, "Welcome to ChatWithMe!");
 	}
 
 	// * ✅ SEND RESET PASSWORD
-	async sendResetPassword() {
+	async sendResetPassword(url: string) {
 		const template = (
 			await readFile(
 				`${process.cwd()}/src/templates/resetPassword.html`,
@@ -39,7 +39,22 @@ export default class EmailService {
 			)
 		)
 			.replace("[UserName]", this.user.name)
-			.replace("[Link]", this.url);
+			.replace("[Link]", url);
+
 		return this.sendEmail(template, "Password Reset Request");
+	}
+
+	// * ✅ SEND SECURITY CODE
+	async sendSecurityCode(code: string) {
+		const template = (
+			await readFile(
+				`${process.cwd()}/src/templates/securityCode.html`,
+				"utf-8"
+			)
+		)
+			.replace("[User]", this.user.name)
+			.replace("[Code]", code);
+
+		return this.sendEmail(template, "Verification Security Code");
 	}
 }

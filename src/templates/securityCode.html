@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Welcome to ChatWithMe</title>
+		<title>Your Login Security Code</title>
 		<style>
 			body {
 				margin: 0;
@@ -29,18 +29,13 @@
 				text-align: center;
 			}
 			.header img {
-				width: 120px;
+				width: 200px;
 				margin-bottom: 20px;
 			}
 			.header h1 {
-				font-size: 32px;
+				font-size: 28px;
 				font-weight: bold;
 				margin: 0;
-			}
-			.sub-title {
-				font-size: 18px;
-				margin-top: 8px;
-				font-weight: 400;
 			}
 			.message {
 				padding: 40px;
@@ -54,20 +49,21 @@
 				margin: 20px 0;
 				color: #555;
 			}
-			.cta-button {
-				display: inline-block;
-				background-color: #2575fc;
-				color: #ffffff;
-				padding: 14px 28px;
-				border-radius: 30px;
-				text-decoration: none;
-				font-size: 18px;
-				font-weight: 600;
-				transition: background-color 0.3s;
-				text-align: center;
+			.code-display {
+				font-size: 32px;
+				letter-spacing: 6px;
+				background: #f0f4ff;
+				padding: 25px;
+				border-radius: 12px;
+				margin: 30px 0;
+				font-weight: bold;
+				color: #2d3748;
+				border: 2px dashed #c3dafe;
 			}
-			.cta-button:hover {
-				background-color: #1f54d1;
+			.security-note {
+				color: #718096;
+				font-size: 14px;
+				margin-top: 25px;
 			}
 			.footer {
 				background-color: #222222;
@@ -86,11 +82,11 @@
 					padding: 10px;
 				}
 				.header h1 {
-					font-size: 28px;
+					font-size: 24px;
 				}
-				.cta-button {
-					padding: 10px 20px;
-					font-size: 16px;
+				.code-display {
+					font-size: 24px;
+					padding: 15px;
 				}
 			}
 		</style>
@@ -100,28 +96,24 @@
 			<!-- Header Section -->
 			<div class="header">
 				<img src="../../public/whitelogo.svg" alt="ChatWithMe Logo" />
-				<h1>Welcome to ChatWithMe!</h1>
-				<p class="sub-title">We're thrilled to have you on board!</p>
+				<h1>Your Security Code</h1>
 			</div>
 
-			<!-- Message Section (Enhanced) -->
+			<!-- Message Section -->
 			<div class="message">
-				<h2>Hi 👋,<strong>[UserName]</strong>!</h2>
-				<p>
-					Welcome to the ChatWithMe family! We’re excited to have you with us
-					and can’t wait for you to start chatting, connecting, and making the
-					most of everything we have to offer.
+				<h2>Hello <strong>[User]</strong>,</h2>
+				<p>Here is your one-time login code for ChatWithMe:</p>
+
+				<div class="code-display">[Code]</div>
+
+				<p class="security-note">
+					This code will expire in 10 minutes.<br />
+					Never share this code with anyone, including ChatWithMe support.
 				</p>
+
 				<p>
-					We’re always here to help you get the best experience. If you have any
-					questions or need assistance, don’t hesitate to
-					<a
-						href="mailto:support@chatwithme.com"
-						style="color: #2575fc; text-decoration: none; font-weight: bold"
-						>reach out to our support team</a
-					>.
+					If you didn't request this code, please check your account security.
 				</p>
-				<a href="[Link]" class="cta-button">Get Started Now</a>
 			</div>
 
 			<!-- Footer Section -->

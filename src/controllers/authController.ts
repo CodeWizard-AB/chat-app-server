@@ -8,8 +8,9 @@ import createHttpError from "http-errors";
 import bcrypt from "bcrypt";
 import { verifyEmail, verifyPhone } from "../utils/verificationServices.ts";
 import { Role, User } from "@prisma/client";
-import crypto from "crypto";
+import crypto, { verify } from "crypto";
 import EmailService from "../utils/emailService.ts";
+import { totp } from "otplib";
 
 // * ✅ COOKIE PARAMS INTERFACE
 interface SetCookie {
@@ -25,6 +26,14 @@ interface SignToken {
 	id: string;
 	secret: string;
 	expiresIn: number;
+}
+
+// * ✅ CREATE ACCESS AND REFRESH TOKEN INTERFACE
+interface CreateSendTokens {
+	user: User;
+	statusCode: number;
+	req: Request;
+	res: Response;
 }
 
 // * ✅ SIGN TOKEN
@@ -43,12 +52,7 @@ const setCookie = ({ name, token, expiry, req, res }: SetCookie) => {
 };
 
 // * ✅ CREATE ACCESS AND REFRESH TOKEN
-const createSendTokens = (
-	user: User,
-	statusCode: number,
-	req: Request,
-	res: Response
-) => {
+const createSendTokens = ({ user, statusCode, req, res }: CreateSendTokens) => {
 	// * ✅ CREATE ACCESS AND REFRESH TOKEN
 	const accessToken = signToken({
 		id: user.id,
@@ -144,14 +148,14 @@ export const signup = catchAsync(
 		});
 
 		// * ✅ STEP 8: SEND WELCOME EMAIL
-		const emailService = new EmailService(newUser, "#");
-		const { error } = await emailService.sendWelcome();
+		const emailService = new EmailService(newUser);
+		const { error } = await emailService.sendWelcome("/");
 		if (error) {
 			return next(createHttpError(500, "Failed to send email"));
 		}
 
 		// * ✅ STEP 9: SEND TOKENS
-		createSendTokens(newUser, 201, req, res);
+		createSendTokens({ user: newUser, statusCode: 201, req, res });
 	}
 );
 
@@ -178,8 +182,73 @@ export const login = catchAsync(
 			return next(createHttpError(401, "Invalid credentials"));
 		}
 
-		// * ✅ STEP 4: SEND TOKENS
-		createSendTokens(user, 200, req, res);
+		// * ✅ STEP 4: CHECK IF USER IS VERIFIED
+		if (!user.isVerified) {
+			// * ✅ GENERATE OTP
+			const token = totp.generate(process.env.TOTP_SECRET!);
+			const emailService = new EmailService(user);
+			const { error } = await emailService.sendSecurityCode(token);
+
+			// * ✅ CHECK IF EMAIL WAS SENT
+			if (error) {
+				return next(createHttpError(500, "Failed to send OTP email"));
+			}
+
+			// * ✅ UPDATE USER
+			await prisma.user.update({
+				where: { id: user.id },
+				data: {
+					optCode: token,
+					optCodeExpires: new Date(Date.now() + 10 * 60 * 1000),
+				},
+			});
+
+			// * ✅ SEND OTP
+			res.status(200).json({
+				status: "success",
+				message: "OTP sent to your email",
+			});
+		} else {
+			// * ✅ SEND TOKENS
+			createSendTokens({ user, statusCode: 200, req, res });
+		}
+	}
+);
+
+// * ✅ VERIFY OTP
+export const verifyOtp = catchAsync(
+	async (req: Request, res: Response, next: NextFunction) => {
+		// * ✅ STEP 1: VALIDATE REQUEST BODY
+		const { phoneNumber, otpCode } = req.body;
+		if (!phoneNumber || !otpCode) {
+			return next(createHttpError(400, "Phone number and OTP are required"));
+		}
+
+		// * ✅ STEP 2: CHECK IF USER EXISTS
+		const user = await prisma.user.findUnique({ where: { phoneNumber } });
+		if (!user) {
+			return next(createHttpError(404, "User not found"));
+		}
+
+		// * ✅ STEP 3: VERIFY SECURITY CODE
+		const isTokenValid = otpCode === user.optCode;
+		if (!isTokenValid) {
+			return next(createHttpError(400, "Invalid TOTP code"));
+		}
+
+		// * STEP 4: UPDATE USER VERIFICATION STATUS
+		await prisma.user.update({
+			where: { id: user.id },
+			data: {
+				isVerified: true,
+				optCode: null,
+				optCodeExpires: null,
+				active: true,
+			},
+		});
+
+		// * ✅ STEP 5: SEND TOKENS
+		createSendTokens({ user, statusCode: 200, req, res });
 	}
 );
 
@@ -270,8 +339,8 @@ export const forgotPassword = catchAsync(
 
 		// * ✅ STEP 5: SEND EMAIL WITH RESET TOKEN
 		const resetURL = `http://localhost:3000/api/users/resetPassword/${resetToken}`;
-		const emailService = new EmailService(existingUser, resetURL);
-		const { error } = await emailService.sendResetPassword();
+		const emailService = new EmailService(existingUser);
+		const { error } = await emailService.sendResetPassword(resetURL);
 		if (error) {
 			return next(createHttpError(500, "Failed to send email"));
 		}
@@ -344,23 +413,24 @@ export const updatePassword = catchAsync(
 		}
 
 		// * STEP 2: VALIDATION PASSWORD
-		const { password } = req.body;
-		if (!password) {
-			return next(createHttpError(400, "Password is required"));
+		const { currentPassword, newPassword } = req.body;
+		if (!currentPassword || !newPassword) {
+			return next(
+				createHttpError(400, "Both current and new password are required")
+			);
 		}
 
+		console.log(currentPassword, newPassword);
+
 		// * ✅ STEP 3: VERIFY PASSWORD
-		const passwordMatch = await bcrypt.compare(
-			req.body.password,
-			user.password
-		);
+		const passwordMatch = await bcrypt.compare(currentPassword, user.password);
 		if (!passwordMatch) {
 			return next(createHttpError(401, "Invalid credentials"));
 		}
 
 		// * ✅ STEP 4: CREATE HASHED PASSWORD
 		const salt = await bcrypt.genSalt(12);
-		const hashedPassword = await bcrypt.hash(password, salt);
+		const hashedPassword = await bcrypt.hash(newPassword, salt);
 
 		// * ✅ STEP 5: UPDATE PASSWORD
 		await prisma.user.update({

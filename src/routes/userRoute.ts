@@ -6,6 +6,7 @@ import {
 	resetPassword,
 	signup,
 	updatePassword,
+	verifyOtp,
 	verifyToken,
 } from "../controllers/authController.ts";
 
@@ -17,7 +18,8 @@ router.post("/signup", signup);
 router.post("/login", login);
 router.get("/logout", logout);
 router.post("/forgotPassword", forgotPassword);
-router.post("/resetPassword/:token", resetPassword);
+router.post("/verifyOtp", verifyOtp);
+router.patch("/resetPassword/:token", resetPassword);
 
 // * ✅ PROTECTED ROUTES
 router.use(verifyToken);
